@@ -52,12 +52,13 @@ export default function Recommendations({
   }, [similarTarget])
 
   const findSimilar = async (trackId, trackName, mode = 'diverse') => {
+    const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000'
     setSimilarTarget({ id: trackId, name: trackName || "Your Song" })
     setSimilarMode(mode)
     setIsSimilarLoading(true)
     setTasteMatch(null)
     try {
-      const res = await fetch('http://127.0.0.1:8000/similar', {
+      const res = await fetch(`${API_URL}/similar`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ track_id: trackId, mode: mode })
@@ -102,8 +103,9 @@ export default function Recommendations({
       return;
     }
 
+    const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000'
     try {
-      const res = await fetch('http://127.0.0.1:8000/check_taste', {
+      const res = await fetch(`${API_URL}/check_taste`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ track_id: id, top_tracks: weighted, seed: 42 })

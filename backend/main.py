@@ -455,4 +455,6 @@ async def check_taste_match(data: TasteCheckRequest):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="127.0.0.1", port=8000)
+    # Use 0.0.0.0 to allow external connections (required for deployment)
+    port = int(os.environ.get("PORT", 8000))
+    uvicorn.run(app, host="0.0.0.0", port=port)

@@ -67,8 +67,10 @@ export default function App() {
     setDeepRecs([])
     setClusterViz(null)
     
+    const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000'
+    
     try {
-      const resHits = await fetch('http://127.0.0.1:8000/analyze', {
+      const resHits = await fetch(`${API_URL}/analyze`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ top_tracks: weightedTracks, seed, mode: 'hits', method })
@@ -77,7 +79,7 @@ export default function App() {
       setHitsRecs(dataHits.recommendations || [])
       if (dataHits.cluster_viz) setClusterViz(dataHits.cluster_viz)
 
-      const resDiv = await fetch('http://127.0.0.1:8000/analyze', {
+      const resDiv = await fetch(`${API_URL}/analyze`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ top_tracks: weightedTracks, seed, mode: 'diverse', method })
@@ -86,7 +88,7 @@ export default function App() {
       setDiverseRecs(dataDiv.recommendations || [])
 
       setIsDeepLoading(true)
-      const resDeep = await fetch('http://127.0.0.1:8000/deep_analyze', {
+      const resDeep = await fetch(`${API_URL}/deep_analyze`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ top_tracks: weightedTracks, seed, method })
