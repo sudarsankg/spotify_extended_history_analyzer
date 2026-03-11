@@ -1,1 +1,2 @@
+*.parquet filter=lfs diff=lfs merge=lfs -text
 backend/clean_spotify_features.parquet filter=lfs diff=lfs merge=lfs -text
