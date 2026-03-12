@@ -453,6 +453,59 @@ async def check_taste_match(data: TasteCheckRequest):
         mse = torch.mean((model(X_input) - X_input)**2).item()
     return {"status": "success", "name": source_song.iloc[0]['name'], "match_score": 1 - mse}
 
+# --- SHARING LOGIC (REDIS) ---
+import redis
+import secrets
+import json
+
+REDIS_URL = os.environ.get("REDIS_URL")
+if REDIS_URL:
+    try:
+        r = redis.from_url(REDIS_URL)
+        r.ping()
+        print("✅ Connected to Redis")
+    except Exception as e:
+        print(f"❌ Redis connection failed: {e}")
+        r = None
+else:
+    print("⚠️  REDIS_URL not set. Using local memory for sharing (reset on restart).")
+    r = None
+
+local_db = {} # In-memory fallback
+
+class ShareRequest(BaseModel):
+    display_name: str
+    stats: dict
+
+@app.post("/share")
+async def share_stats(data: ShareRequest):
+    share_id = secrets.token_urlsafe(6)
+    payload = json.dumps({
+        "display_name": data.display_name,
+        "stats": data.stats,
+        "timestamp": time.time()
+    })
+    
+    if r:
+        # Store for 30 days
+        r.setex(f"share:{share_id}", 86400 * 30, payload)
+    else:
+        local_db[share_id] = payload
+        
+    return {"status": "success", "share_id": share_id}
+
+@app.get("/share/{share_id}")
+async def get_shared_stats(share_id: str):
+    if r:
+        data = r.get(f"share:{share_id}")
+    else:
+        data = local_db.get(share_id)
+        
+    if not data:
+        return {"status": "error", "message": "Share not found or expired."}
+        
+    return {"status": "success", "data": json.loads(data)}
+
 if __name__ == "__main__":
     import uvicorn
     # Use 0.0.0.0 to allow external connections (required for deployment)

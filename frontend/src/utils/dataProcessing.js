@@ -53,7 +53,7 @@ export function filterTracks(allTracks, year, month) {
   })
 }
 
-export function computeStats(tracks) {
+export function computeStats(tracks, limit = 15) {
   const totalMs = tracks.reduce((s, d) => s + (d.ms_played || d.msPlayed || 0), 0)
   const totalPlays = tracks.length
   const skipped = tracks.filter(d => d.skipped === true).length
@@ -71,7 +71,7 @@ export function computeStats(tracks) {
     trackMap[key].ms += d.ms_played || d.msPlayed || 0
     trackMap[key].plays++
   })
-  const topTracks = topN(trackMap, 15)
+  const topTracks = topN(trackMap, limit)
 
   // Top artists
   const artistMap = {}
@@ -82,7 +82,7 @@ export function computeStats(tracks) {
     artistMap[a].ms += d.ms_played || d.msPlayed || 0
     artistMap[a].plays++
   })
-  const topArtists = topN(artistMap, 15)
+  const topArtists = topN(artistMap, limit)
 
   // Top albums
   const albumMap = {}
@@ -95,7 +95,7 @@ export function computeStats(tracks) {
     albumMap[key].ms += d.ms_played || d.msPlayed || 0
     albumMap[key].plays++
   })
-  const topAlbums = topN(albumMap, 15)
+  const topAlbums = topN(albumMap, limit)
 
   // Heatmap
   const heatmap = {}
@@ -228,3 +228,4 @@ export function computeTimeline(tracks, year, month) {
     }
   }
 }
+export function computeExtendedStats(tracks) { return computeStats(tracks, 100) }

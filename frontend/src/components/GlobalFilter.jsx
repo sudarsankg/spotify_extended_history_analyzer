@@ -1,7 +1,7 @@
 import React from 'react'
 import { MONTH_NAMES } from '../utils/dataProcessing'
 
-export default function GlobalFilter({ years, year, month, onYearChange, onMonthChange, periodLabel, onReset }) {
+export default function GlobalFilter({ years, year, month, onYearChange, onMonthChange, periodLabel, onReset, onShare, isSharing }) {
   return (
     <div style={{
       display: 'flex',
@@ -11,7 +11,23 @@ export default function GlobalFilter({ years, year, month, onYearChange, onMonth
       flexWrap: 'wrap',
       gap: '1rem',
     }}>
-      <button className="reset-btn" onClick={onReset}>← Load New Files</button>
+      <div style={{ display: 'flex', gap: '1rem' }}>
+        <button className="reset-btn" onClick={onReset}>← Load New Files</button>
+        <button 
+          className="reset-btn" 
+          onClick={onShare} 
+          disabled={isSharing}
+          style={{ 
+            borderColor: 'var(--green)', 
+            color: 'var(--green)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem'
+          }}
+        >
+          {isSharing ? '⌛ GENERATING...' : '📤 SHARE MY STATS'}
+        </button>
+      </div>
 
       <div style={{
         display: 'flex',

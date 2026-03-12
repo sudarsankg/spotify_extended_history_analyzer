@@ -10,7 +10,9 @@ import Heatmap from './components/Heatmap'
 import { Platforms } from './components/PlatformStats'
 import ListeningInsights from './components/ListeningInsights'
 import Recommendations from './components/Recommendations'
+import CompareView from './components/CompareView'
 import { useListeningData } from './hooks/useListeningData'
+import { computeExtendedStats } from './utils/dataProcessing'
 
 export default function App() {
   const {
@@ -29,11 +31,65 @@ export default function App() {
   const [currentSeed, setCurrentSeed] = useState(42)
   const [recMethod, setRecMethod] = useState('autoencoder') // 'autoencoder' or 'clustering'
 
+  // Sharing State
+  const [sharedStats, setSharedStats] = useState(null)
+  const [sharedName, setSharedName] = useState('')
+  const [shareLink, setShareLink] = useState('')
+  const [isSharing, setIsSharing] = useState(false)
+  const [showCompare, setShowCompare] = useState(false)
+
   // AI Period State (Separate from the dashboard filter)
   const [recYear, setRecYear] = useState('all')
   const [recMonth, setRecMonth] = useState('all')
 
   const hasData = allTracks.length > 0
+  const userExtendedStats = useMemo(() => allTracks.length > 0 ? computeExtendedStats(allTracks) : null, [allTracks])
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const shareId = params.get('share')
+    if (shareId) {
+      const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000'
+      fetch(`${API_URL}/share/${shareId}`)
+        .then(res => res.json())
+        .then(json => {
+          if (json.status === 'success') {
+            setSharedStats(json.data.stats)
+            setSharedName(json.data.display_name)
+            setShowCompare(true)
+          }
+        })
+        .catch(e => console.error("Failed to fetch shared stats", e))
+    }
+  }, [])
+
+  const handleShare = async () => {
+    const name = prompt("Enter a display name for your stats (e.g. 'Alex'):")
+    if (!name) return
+
+    setIsSharing(true)
+    const extendedStats = computeExtendedStats(allTracks)
+    const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000'
+    
+    try {
+      const res = await fetch(`${API_URL}/share`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ display_name: name, stats: extendedStats })
+      })
+      const data = await res.json()
+      if (data.status === 'success') {
+        const link = `${window.location.origin}${window.location.pathname}?share=${data.share_id}`
+        setShareLink(link)
+        navigator.clipboard.writeText(link)
+        alert(`Copied to clipboard: ${link}`)
+      }
+    } catch (e) {
+      alert("Failed to generate share link.")
+    } finally {
+      setIsSharing(false)
+    }
+  }
 
   const getWeightedTopTracks = (data, filterYear, filterMonth) => {
     const trackStats = {}
@@ -127,7 +183,27 @@ export default function App() {
     <div>
       <Header />
       {!hasData ? (
-        <DropZone onData={handleDataLoaded} />
+        <div style={{ padding: '2rem 4rem 0' }}>
+          {sharedStats && (
+            <div style={{ 
+              marginBottom: '2rem', 
+              background: 'var(--surface)', 
+              border: '1px solid var(--green)', 
+              padding: '2rem', 
+              borderRadius: 4,
+              textAlign: 'center' 
+            }}>
+              <h3 style={{ fontFamily: "'Bebas Neue', sans-serif", color: 'var(--green)', fontSize: '2rem', margin: '0 0 1rem 0' }}>
+                YOU'VE BEEN INVITED TO COMPARE STATS!
+              </h3>
+              <p style={{ color: 'var(--text)', fontSize: '0.9rem', maxWidth: '600px', margin: '0 auto', fontFamily: "'Space Mono', monospace" }}>
+                {sharedName.toUpperCase()} shared their listening habits with you. <br/>
+                Upload your Spotify extended history below to see how you match up.
+              </p>
+            </div>
+          )}
+          <DropZone onData={handleDataLoaded} />
+        </div>
       ) : (
         <>
           <div style={{ padding: '2rem 4rem 0' }}>
@@ -136,51 +212,102 @@ export default function App() {
                  ⚙️ AI Status: {aiStatus}
                </div>
             )}
-            <GlobalFilter years={years} year={year} month={month} onYearChange={handleYearChange} onMonthChange={setMonth} periodLabel={periodLabel} onReset={reset} />
             
-            {stats && (
+            {sharedStats && (
+               <div style={{ marginBottom: '2rem' }}>
+                 <button 
+                   onClick={() => setShowCompare(!showCompare)}
+                   style={{ 
+                     width: '100%', 
+                     padding: '1.2rem', 
+                     background: 'var(--surface)', 
+                     border: `2px solid ${showCompare ? 'var(--green)' : 'var(--border)'}`, 
+                     color: showCompare ? 'var(--green)' : 'var(--muted)', 
+                     fontFamily: "'Space Mono', monospace", 
+                     cursor: 'pointer',
+                     borderRadius: 4,
+                     fontSize: '0.9rem',
+                     letterSpacing: '0.15em',
+                     transition: 'all 0.2s',
+                     display: 'flex',
+                     alignItems: 'center',
+                     justifyContent: 'center',
+                     gap: '1rem'
+                   }}
+                 >
+                   {showCompare ? '↑ BACK TO MY PERSONAL STATS' : `↓ COMPARE WITH ${sharedName.toUpperCase()}'S TASTE`}
+                 </button>
+               </div>
+            )}
+
+            {!showCompare ? (
               <>
-                <div className="section-label">Overview</div>
-                <HeroStats stats={stats} />
+                <GlobalFilter 
+                  years={years} 
+                  year={year} 
+                  month={month} 
+                  onYearChange={handleYearChange} 
+                  onMonthChange={setMonth} 
+                  periodLabel={periodLabel} 
+                  onReset={reset}
+                  onShare={handleShare}
+                  isSharing={isSharing}
+                />
+                
+                {stats && (
+                  <>
+                    <div className="section-label">Overview</div>
+                    <HeroStats stats={stats} />
 
-                <div className="section-label">Fun Facts</div>
-                <FunFacts stats={stats} />
+                    <div className="section-label">Fun Facts</div>
+                    <FunFacts stats={stats} />
 
-                <div className="two-col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '2rem' }}>
-                  <RankedList title="Top Tracks" items={stats.topTracks} getName={d => d.name} getSub={d => `${d.artist} · ${d.plays.toLocaleString()} plays`} maxMs={stats.topTracks[0]?.ms} />
-                  <RankedList title="Top Artists" items={stats.topArtists} getName={d => d.key} getSub={d => `${d.plays.toLocaleString()} plays`} maxMs={stats.topArtists[0]?.ms} />
-                </div>
+                    <div className="two-col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '2rem' }}>
+                      <RankedList title="Top Tracks" items={stats.topTracks} getName={d => d.name} getSub={d => `${d.artist} · ${d.plays.toLocaleString()} plays`} maxMs={stats.topTracks[0]?.ms} />
+                      <RankedList title="Top Artists" items={stats.topArtists} getName={d => d.key} getSub={d => `${d.plays.toLocaleString()} plays`} maxMs={stats.topArtists[0]?.ms} />
+                    </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '2rem', alignItems: 'stretch' }}>
-                  <RankedList title="Top Albums" items={stats.topAlbums} getName={d => d.album} getSub={d => `${d.artist} · ${d.plays.toLocaleString()} plays`} maxMs={stats.topAlbums[0]?.ms} />
-                  
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                    <TimelineChart timeline={timeline} />
-                    <Heatmap heatmap={stats.heatmap} />
-                    <ListeningInsights stats={stats} />
-                    <Platforms topPlatforms={stats.topPlatforms} />
-                  </div>
-                </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '2rem', alignItems: 'stretch' }}>
+                      <RankedList title="Top Albums" items={stats.topAlbums} getName={d => d.album} getSub={d => `${d.artist} · ${d.plays.toLocaleString()} plays`} maxMs={stats.topAlbums[0]?.ms} />
+                      
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                        <TimelineChart timeline={timeline} />
+                        <Heatmap heatmap={stats.heatmap} />
+                        <ListeningInsights stats={stats} />
+                        <Platforms topPlatforms={stats.topPlatforms} />
+                      </div>
+                    </div>
+                  </>
+                )}
               </>
+            ) : (
+              <CompareView 
+                userStats={userExtendedStats} 
+                sharedStats={sharedStats} 
+                sharedName={sharedName} 
+              />
             )}
           </div>
-          <Recommendations 
-            allTracks={allTracks}
-            years={years}
-            monthsByYear={monthsByYear}
-            recYear={recYear}
-            recMonth={recMonth}
-            setRecYear={setRecYear}
-            setRecMonth={setRecMonth}
-            hitsRecs={hitsRecs} 
-            diverseRecs={diverseRecs} 
-            deepRecs={deepRecs} 
-            onRefresh={handleRefreshAI} 
-            isDeepLoading={isDeepLoading}
-            recMethod={recMethod}
-            setRecMethod={setRecMethod}
-            clusterViz={clusterViz}
-          />
+          
+          {!showCompare && (
+            <Recommendations 
+              allTracks={allTracks}
+              years={years}
+              monthsByYear={monthsByYear}
+              recYear={recYear}
+              recMonth={recMonth}
+              setRecYear={setRecYear}
+              setRecMonth={setRecMonth}
+              hitsRecs={hitsRecs} 
+              diverseRecs={diverseRecs} 
+              deepRecs={deepRecs} 
+              onRefresh={handleRefreshAI} 
+              isDeepLoading={isDeepLoading}
+              recMethod={recMethod}
+              setRecMethod={setRecMethod}
+              clusterViz={clusterViz}
+            />
+          )}
         </>
       )}
     </div>
