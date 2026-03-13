@@ -228,4 +228,4 @@ export function computeTimeline(tracks, year, month) {
     }
   }
 }
-export function computeExtendedStats(tracks) { return computeStats(tracks, 100) }
+export function computeExtendedStats(tracks) { return computeStats(tracks, 15) }

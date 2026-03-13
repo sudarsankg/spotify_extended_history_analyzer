@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import Header from './components/Header'
 import DropZone from './components/DropZone'
 import GlobalFilter from './components/GlobalFilter'
@@ -35,8 +35,14 @@ export default function App() {
   const [sharedStats, setSharedStats] = useState(null)
   const [sharedName, setSharedName] = useState('')
   const [shareLink, setShareLink] = useState('')
-  const [isSharing, setIsSharing] = useState(false)
+  const [isSharing, setIsSharing] = useState(null) // null, 'share', or 'compare'
   const [showCompare, setShowCompare] = useState(false)
+  const [toast, setToast] = useState(null)
+
+  const showToast = (msg) => {
+    setToast(msg)
+    setTimeout(() => setToast(null), 3000)
+  }
 
   // AI Period State (Separate from the dashboard filter)
   const [recYear, setRecYear] = useState('all')
@@ -48,6 +54,7 @@ export default function App() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     const shareId = params.get('share')
+    const shouldCompare = params.get('compare') === 'true'
     if (shareId) {
       const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000'
       fetch(`${API_URL}/share/${shareId}`)
@@ -56,18 +63,15 @@ export default function App() {
           if (json.status === 'success') {
             setSharedStats(json.data.stats)
             setSharedName(json.data.display_name)
-            setShowCompare(true)
+            if (shouldCompare) setShowCompare(true)
           }
         })
         .catch(e => console.error("Failed to fetch shared stats", e))
     }
   }, [])
 
-  const handleShare = async () => {
-    const name = prompt("Enter a display name for your stats (e.g. 'Alex'):")
-    if (!name) return
-
-    setIsSharing(true)
+  const handleShare = async (isCompare = false) => {
+    setIsSharing(isCompare ? 'compare' : 'share')
     const extendedStats = computeExtendedStats(allTracks)
     const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000'
     
@@ -75,19 +79,19 @@ export default function App() {
       const res = await fetch(`${API_URL}/share`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ display_name: name, stats: extendedStats })
+        body: JSON.stringify({ display_name: 'User', stats: extendedStats })
       })
       const data = await res.json()
       if (data.status === 'success') {
-        const link = `${window.location.origin}${window.location.pathname}?share=${data.share_id}`
+        const link = `${window.location.origin}${window.location.pathname}?share=${data.share_id}${isCompare ? '&compare=true' : ''}`
         setShareLink(link)
         navigator.clipboard.writeText(link)
-        alert(`Copied to clipboard: ${link}`)
+        showToast("LINK COPIED TO CLIPBOARD")
       }
     } catch (e) {
-      alert("Failed to generate share link.")
+      showToast("FAILED TO GENERATE LINK")
     } finally {
-      setIsSharing(false)
+      setIsSharing(null)
     }
   }
 
@@ -184,25 +188,93 @@ export default function App() {
       <Header />
       {!hasData ? (
         <div style={{ padding: '2rem 4rem 0' }}>
-          {sharedStats && (
-            <div style={{ 
-              marginBottom: '2rem', 
-              background: 'var(--surface)', 
-              border: '1px solid var(--green)', 
-              padding: '2rem', 
-              borderRadius: 4,
-              textAlign: 'center' 
-            }}>
-              <h3 style={{ fontFamily: "'Bebas Neue', sans-serif", color: 'var(--green)', fontSize: '2rem', margin: '0 0 1rem 0' }}>
-                YOU'VE BEEN INVITED TO COMPARE STATS!
-              </h3>
-              <p style={{ color: 'var(--text)', fontSize: '0.9rem', maxWidth: '600px', margin: '0 auto', fontFamily: "'Space Mono', monospace" }}>
-                {(sharedName || 'Someone').toUpperCase()} shared their listening habits with you. <br/>
-                Upload your Spotify extended history below to see how you match up.
-              </p>
-            </div>
+          {sharedStats ? (
+            <>
+              <div style={{ 
+                marginBottom: '2rem', 
+                background: 'var(--surface)', 
+                border: '1px solid var(--green)', 
+                padding: '1.5rem', 
+                borderRadius: 4,
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center'
+              }}>
+                <div>
+                  <h3 style={{ fontFamily: "'Bebas Neue', sans-serif", color: 'var(--green)', fontSize: '1.5rem', margin: 0 }}>
+                    VIEWING {(sharedName || 'USER').toUpperCase()}'S STATS
+                  </h3>
+                  <p style={{ color: 'var(--muted)', fontSize: '0.7rem', fontFamily: "'Space Mono', monospace", marginTop: '0.2rem' }}>
+                    This is a shared snapshot. Upload your own data below to see yours or compare.
+                  </p>
+                </div>
+                <button 
+                  onClick={() => {
+                    const el = document.getElementById('upload-section');
+                    if (el) el.scrollIntoView({ behavior: 'smooth' });
+                  }}
+                  style={{
+                    background: 'var(--green)',
+                    color: 'black',
+                    border: 'none',
+                    padding: '0.6rem 1.2rem',
+                    borderRadius: 4,
+                    fontFamily: "'Bebas Neue', sans-serif",
+                    fontSize: '0.9rem',
+                    cursor: 'pointer'
+                  }}
+                >
+                  UPLOAD MY DATA
+                </button>
+              </div>
+
+              <div className="section-label">Overview</div>
+              <HeroStats stats={sharedStats} />
+
+              <div className="section-label">Fun Facts</div>
+              <FunFacts stats={sharedStats} />
+
+              <div className="two-col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '2rem' }}>
+                <RankedList title="Top Tracks" items={sharedStats.topTracks} getName={d => d.name} getSub={d => `${d.artist} · ${d.plays.toLocaleString()} plays`} maxMs={sharedStats.topTracks[0]?.ms} />
+                <RankedList title="Top Artists" items={sharedStats.topArtists} getName={d => d.key} getSub={d => `${d.plays.toLocaleString()} plays`} maxMs={sharedStats.topArtists[0]?.ms} />
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '4rem', alignItems: 'stretch' }}>
+                <RankedList title="Top Albums" items={sharedStats.topAlbums} getName={d => d.album} getSub={d => `${d.artist} · ${d.plays.toLocaleString()} plays`} maxMs={sharedStats.topAlbums[0]?.ms} />
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                  <Heatmap heatmap={sharedStats.heatmap} />
+                  <ListeningInsights stats={sharedStats} />
+                  <Platforms topPlatforms={sharedStats.topPlatforms} />
+                </div>
+              </div>
+
+              <div id="upload-section" style={{ borderTop: '1px solid var(--border)', paddingTop: '4rem', marginBottom: '2rem' }}>
+                <div className="section-label">Analyze Your Own History</div>
+                <DropZone onData={handleDataLoaded} />
+              </div>
+
+              <Recommendations 
+                allTracks={[]} // No local tracks yet
+                years={[]}
+                monthsByYear={{}}
+                recYear="all"
+                recMonth="all"
+                setRecYear={() => {}}
+                setRecMonth={() => {}}
+                hitsRecs={[]} 
+                diverseRecs={[]} 
+                deepRecs={[]} 
+                onRefresh={() => {}} 
+                isDeepLoading={false}
+                recMethod="autoencoder"
+                setRecMethod={() => {}}
+                clusterViz={null}
+                isSharedView={true} // New prop to hide AI grid
+              />
+            </>
+          ) : (
+            <DropZone onData={handleDataLoaded} />
           )}
-          <DropZone onData={handleDataLoaded} />
         </div>
       ) : (
         <>
@@ -309,6 +381,39 @@ export default function App() {
             />
           )}
         </>
+      )}
+      <style>{`
+        @keyframes toastFade {
+          0% { opacity: 0; transform: translate(-50%, 20px); }
+          10% { opacity: 1; transform: translate(-50%, 0); }
+          90% { opacity: 1; transform: translate(-50%, 0); }
+          100% { opacity: 0; transform: translate(-50%, -10px); }
+        }
+      `}</style>
+      {toast && (
+        <div style={{
+          position: 'fixed',
+          bottom: '3rem',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          background: 'var(--green)',
+          color: 'black',
+          padding: '0.8rem 1.5rem',
+          borderRadius: 4,
+          fontFamily: "'Space Mono', monospace",
+          fontSize: '0.75rem',
+          fontWeight: 'bold',
+          letterSpacing: '0.1em',
+          zIndex: 99999,
+          boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+          animation: 'toastFade 3s ease forwards',
+          pointerEvents: 'none',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.5rem'
+        }}>
+          <span>✓</span> {toast}
+        </div>
       )}
     </div>
   )

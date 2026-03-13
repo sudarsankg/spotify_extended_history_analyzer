@@ -11,12 +11,12 @@ export default function GlobalFilter({ years, year, month, onYearChange, onMonth
       flexWrap: 'wrap',
       gap: '1rem',
     }}>
-      <div style={{ display: 'flex', gap: '1rem' }}>
-        <button className="reset-btn" onClick={onReset}>← Load New Files</button>
+    <div style={{ display: 'flex', gap: '1rem' }}>
+        <button className="reset-btn" onClick={onReset}>Load New Files</button>
         <button 
           className="reset-btn" 
-          onClick={onShare} 
-          disabled={isSharing}
+          onClick={() => onShare(false)} 
+          disabled={isSharing !== null}
           style={{ 
             borderColor: 'var(--green)', 
             color: 'var(--green)',
@@ -25,7 +25,21 @@ export default function GlobalFilter({ years, year, month, onYearChange, onMonth
             gap: '0.5rem'
           }}
         >
-          {isSharing ? '⌛ GENERATING...' : '📤 SHARE MY STATS'}
+          {isSharing === 'share' ? 'GENERATING...' : 'SHARE MY STATS'}
+        </button>
+        <button 
+          className="reset-btn" 
+          onClick={() => onShare(true)} 
+          disabled={isSharing !== null}
+          style={{ 
+            borderColor: 'var(--accent)', 
+            color: 'var(--accent)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem'
+          }}
+        >
+          {isSharing === 'compare' ? 'GENERATING...' : 'COMPARE WITH OTHERS'}
         </button>
       </div>
 
