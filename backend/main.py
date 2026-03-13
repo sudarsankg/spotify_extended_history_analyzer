@@ -20,9 +20,9 @@ from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.cluster import KMeans
 from sklearn.decomposition import PCA
 import time
-import os
-
+import threading
 import hashlib
+from starlette.concurrency import run_in_threadpool
 
 # SET SEEDS FOR CONSISTENCY
 def set_seed(seed):
@@ -93,6 +93,8 @@ cached_brain = {
     "matched_names": []
 }
 
+train_lock = threading.Lock()
+
 # Load the database
 print("Loading Parquet database into RAM...")
 master_df = pd.read_parquet('clean_spotify_features.parquet')
@@ -131,7 +133,48 @@ def get_data_fingerprint(data: List[TrackWeight], seed: int):
     raw_str = "".join([f"{t.name}{t.count}" for t in data]) + str(seed)
     return hashlib.md5(raw_str.encode()).hexdigest()
 
-def train_or_load_model(data: List[TrackWeight], seed: int):
+def _train_logic(data: List[TrackWeight], seed: int, fingerprint: str):
+    global cached_brain
+    with train_lock:
+        # Check again inside the lock to see if another thread finished training it
+        if cached_brain["fingerprint"] == fingerprint:
+            return cached_brain["model"], cached_brain["scaler"], cached_brain["matched_names"]
+
+        print(f"🧠 [CACHE MISS] Training brand new model in background thread...")
+        name_to_count = { t.name.lower().strip(): t.count for t in data }
+        unique_names = list(name_to_count.keys())
+        matched_unique = master_df[master_df['name_lower'].isin(unique_names)].drop_duplicates(subset=['name_lower'])
+        
+        weighted_features = []
+        for _, row in matched_unique.iterrows():
+            count = name_to_count.get(row['name_lower'], 1)
+            capped_count = min(count, 100)
+            feat = row[features_columns].values
+            for _ in range(capped_count): weighted_features.append(feat)
+                
+        if len(weighted_features) < 10: return None, None, []
+        
+        scaler = StandardScaler()
+        scaled_matrix = scaler.fit_transform(np.array(weighted_features))
+        X_train = torch.FloatTensor(scaled_matrix)
+        model = TasteAutoencoder()
+        optimizer = optim.Adam(model.parameters(), lr=0.008)
+        
+        model.train()
+        # Kept original epochs as requested
+        for epoch in range(3500):
+            optimizer.zero_grad()
+            loss = nn.MSELoss()(model(X_train), X_train)
+            loss.backward()
+            optimizer.step()
+            if (epoch + 1) % 1000 == 0:
+                print(f"   Training Step [{epoch+1}/3500], Loss: {loss.item():.4f}")
+                
+        print(f"Training complete. Final loss: {loss.item():.4f}")
+        cached_brain = {"fingerprint": fingerprint, "model": model, "scaler": scaler, "matched_names": matched_unique['name_lower'].tolist()}
+        return model, scaler, cached_brain["matched_names"]
+
+async def train_or_load_model(data: List[TrackWeight], seed: int):
     global cached_brain
     fingerprint = get_data_fingerprint(data, seed)
     
@@ -139,38 +182,8 @@ def train_or_load_model(data: List[TrackWeight], seed: int):
         print(f"🚀 [CACHE HIT] Using existing trained model.")
         return cached_brain["model"], cached_brain["scaler"], cached_brain["matched_names"]
 
-    print(f"🧠 [CACHE MISS] Training brand new model...")
-    name_to_count = { t.name.lower().strip(): t.count for t in data }
-    unique_names = list(name_to_count.keys())
-    matched_unique = master_df[master_df['name_lower'].isin(unique_names)].drop_duplicates(subset=['name_lower'])
-    
-    weighted_features = []
-    for _, row in matched_unique.iterrows():
-        count = name_to_count.get(row['name_lower'], 1)
-        capped_count = min(count, 100)
-        feat = row[features_columns].values
-        for _ in range(capped_count): weighted_features.append(feat)
-            
-    if len(weighted_features) < 10: return None, None, []
-    
-    scaler = StandardScaler()
-    scaled_matrix = scaler.fit_transform(np.array(weighted_features))
-    X_train = torch.FloatTensor(scaled_matrix)
-    model = TasteAutoencoder()
-    optimizer = optim.Adam(model.parameters(), lr=0.008)
-    
-    model.train()
-    for epoch in range(3500):
-        optimizer.zero_grad()
-        loss = nn.MSELoss()(model(X_train), X_train)
-        loss.backward()
-        optimizer.step()
-        if (epoch + 1) % 1000 == 0:
-            print(f"   Training Step [{epoch+1}/3500], Loss: {loss.item():.4f}")
-            
-    print(f"Training complete. Final loss: {loss.item():.4f}")
-    cached_brain = {"fingerprint": fingerprint, "model": model, "scaler": scaler, "matched_names": matched_unique['name_lower'].tolist()}
-    return model, scaler, cached_brain["matched_names"]
+    # Run the blocking training logic in a threadpool so it doesn't block the FastAPI event loop
+    return await run_in_threadpool(_train_logic, data, seed, fingerprint)
 
 def get_clustering_recommendations(data: List[TrackWeight], pool: pd.DataFrame, known_names: List[str], seed: int, n=20):
     """
@@ -328,7 +341,7 @@ def get_cluster_visualization(matched_unique, name_to_count, centroids, scaler, 
 @app.post("/analyze")
 async def analyze_user_taste(data: UserHistory):
     effective_seed = set_seed(data.seed)
-    model, scaler, known_names = train_or_load_model(data.top_tracks, effective_seed)
+    model, scaler, known_names = await train_or_load_model(data.top_tracks, effective_seed)
     if model is None: return {"status": "error", "message": "Need more data."}
     
     pool = hits_pool if data.mode == "hits" else diverse_pool
@@ -360,7 +373,7 @@ async def analyze_user_taste(data: UserHistory):
         
         return {"status": "success", "recommendations": recs, "cluster_viz": viz}
     
-    # Default Autoencoder method... (rest of the function)
+    # Default Autoencoder method
     current_recs_df = pool[~pool['name_lower'].isin(known_names)].copy()
     X_cand = torch.FloatTensor(scaler.transform(current_recs_df[features_columns].values))
     model.eval()
@@ -377,7 +390,7 @@ async def analyze_user_taste(data: UserHistory):
 @app.post("/deep_analyze")
 async def deep_analyze_user_taste(data: UserHistory):
     effective_seed = set_seed(data.seed)
-    model, scaler, known_names = train_or_load_model(data.top_tracks, effective_seed)
+    model, scaler, known_names = await train_or_load_model(data.top_tracks, effective_seed)
     if model is None: return {"status": "error", "message": "Need more data."}
     
     if data.method == "clustering":
@@ -443,7 +456,7 @@ async def find_similar_songs(data: SimilarRequest):
 @app.post("/check_taste")
 async def check_taste_match(data: TasteCheckRequest):
     effective_seed = set_seed(data.seed)
-    model, scaler, _ = train_or_load_model(data.top_tracks, effective_seed)
+    model, scaler, _ = await train_or_load_model(data.top_tracks, effective_seed)
     if model is None: return {"status": "error", "message": "Need more data."}
     source_song = master_df[master_df['id'] == data.track_id]
     if source_song.empty: return {"status": "error", "message": "Song not found."}
