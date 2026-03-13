@@ -27,6 +27,7 @@ export default function App() {
   const [diverseRecs, setDiverseRecs] = useState([])
   const [deepRecs, setDeepRecs] = useState([])
   const [clusterViz, setClusterViz] = useState(null)
+  const [tasteDna, setTasteDna] = useState(null)
   const [isDeepLoading, setIsDeepLoading] = useState(false)
   const [currentSeed, setCurrentSeed] = useState(42)
   const [recMethod, setRecMethod] = useState('autoencoder') // 'autoencoder' or 'clustering'
@@ -84,6 +85,8 @@ export default function App() {
     setIsSharing(isCompareMode ? 'compare' : 'share')
     
     const extendedStats = computeExtendedStats(allTracks)
+    if (tasteDna) extendedStats.taste_dna = tasteDna
+    
     const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000'
     
     try {
@@ -149,6 +152,7 @@ export default function App() {
       const dataHits = await resHits.json()
       setHitsRecs(dataHits.recommendations || [])
       if (dataHits.cluster_viz) setClusterViz(dataHits.cluster_viz)
+      if (dataHits.taste_dna) setTasteDna(dataHits.taste_dna)
 
       const resDiv = await fetch(`${API_URL}/analyze`, {
         method: 'POST',
