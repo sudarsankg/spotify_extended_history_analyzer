@@ -8,6 +8,7 @@ export function msToHM(ms) {
 }
 
 export function msToReadable(ms) {
+  if (!ms || isNaN(ms)) return '0m'
   const h = Math.floor(ms / 3600000)
   const m = Math.floor((ms % 3600000) / 60000)
   if (h > 24) return `${Math.round(h / 24)} days`

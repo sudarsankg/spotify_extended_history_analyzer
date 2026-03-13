@@ -12,7 +12,7 @@ import ListeningInsights from './components/ListeningInsights'
 import Recommendations from './components/Recommendations'
 import CompareView from './components/CompareView'
 import { useListeningData } from './hooks/useListeningData'
-import { computeExtendedStats } from './utils/dataProcessing'
+import { computeExtendedStats, computeTimeline } from './utils/dataProcessing'
 
 export default function App() {
   const {
@@ -38,6 +38,7 @@ export default function App() {
   const [shareLink, setShareLink] = useState('')
   const [isSharing, setIsSharing] = useState(null) // null, 'share', or 'compare'
   const [showCompare, setShowCompare] = useState(false)
+  const [isCompareLink, setIsCompareLink] = useState(false)
   const [toast, setToast] = useState(null)
   const [showNameModal, setShowNameModal] = useState(false)
   const [nameInput, setNameInput] = useState('')
@@ -53,13 +54,20 @@ export default function App() {
   const [recMonth, setRecMonth] = useState('all')
 
   const hasData = allTracks.length > 0
-  const userExtendedStats = useMemo(() => allTracks.length > 0 ? computeExtendedStats(allTracks) : null, [allTracks])
+  const userExtendedStats = useMemo(() => {
+    if (allTracks.length === 0) return null
+    const base = computeExtendedStats(allTracks)
+    if (tasteDna) base.taste_dna = tasteDna
+    base.yearly_timeline = computeTimeline(allTracks, 'all', 'all')
+    return base
+  }, [allTracks, tasteDna])
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     const shareId = params.get('share')
     const shouldCompare = params.get('compare') === 'true'
     if (shareId) {
+      setIsCompareLink(shouldCompare)
       const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000'
       fetch(`${API_URL}/share/${shareId}`)
         .then(res => res.json())
@@ -86,6 +94,7 @@ export default function App() {
     
     const extendedStats = computeExtendedStats(allTracks)
     if (tasteDna) extendedStats.taste_dna = tasteDna
+    extendedStats.yearly_timeline = computeTimeline(allTracks, 'all', 'all')
     
     const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000'
     
@@ -205,66 +214,90 @@ export default function App() {
         <div style={{ padding: '2rem 4rem 0' }}>
           {sharedStats ? (
             <>
-              <div style={{ 
-                marginBottom: '2rem', 
-                background: 'var(--surface)', 
-                border: '1px solid var(--green)', 
-                padding: '1.5rem', 
-                borderRadius: 4,
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center'
-              }}>
-                <div>
-                  <h3 style={{ fontFamily: "'Bebas Neue', sans-serif", color: 'var(--green)', fontSize: '1.5rem', margin: 0 }}>
-                    VIEWING {(sharedName || 'USER').toUpperCase()}'S STATS
+              {isCompareLink ? (
+                /* INVITATION TO COMPARE SCREEN */
+                <div style={{ 
+                  marginBottom: '2rem', 
+                  background: 'var(--surface)', 
+                  border: '1px solid var(--accent)', 
+                  padding: '4rem 2rem', 
+                  borderRadius: 4,
+                  textAlign: 'center',
+                  animation: 'fadeUp 0.5s ease'
+                }}>
+                  <h3 style={{ fontFamily: "'Bebas Neue', sans-serif", color: 'var(--accent)', fontSize: '3rem', margin: '0 0 1rem 0' }}>
+                    {(sharedName || 'Someone').toUpperCase()} INVITED YOU TO COMPARE STATS!
                   </h3>
-                  <p style={{ color: 'var(--muted)', fontSize: '0.7rem', fontFamily: "'Space Mono', monospace", marginTop: '0.2rem' }}>
-                    This is a shared snapshot. Upload your own data below to see yours or compare.
+                  <p style={{ color: 'var(--text)', fontSize: '1rem', maxWidth: '600px', margin: '0 auto 2.5rem', fontFamily: "'Space Mono', monospace", lineHeight: 1.6 }}>
+                    Upload your Spotify extended history below to see how your musical taste matches up with theirs.
                   </p>
+                  <div style={{ width: 100, height: 2, background: 'var(--accent)', margin: '0 auto', opacity: 0.3 }} />
                 </div>
-                <button 
-                  onClick={() => {
-                    const el = document.getElementById('upload-section');
-                    if (el) el.scrollIntoView({ behavior: 'smooth' });
-                  }}
-                  style={{
-                    background: 'var(--green)',
-                    color: 'black',
-                    border: 'none',
-                    padding: '0.6rem 1.2rem',
+              ) : (
+                /* SHARED STATS REPLICA */
+                <>
+                  <div style={{ 
+                    marginBottom: '2rem', 
+                    background: 'var(--surface)', 
+                    border: '1px solid var(--green)', 
+                    padding: '1.5rem', 
                     borderRadius: 4,
-                    fontFamily: "'Bebas Neue', sans-serif",
-                    fontSize: '0.9rem',
-                    cursor: 'pointer'
-                  }}
-                >
-                  UPLOAD MY DATA
-                </button>
-              </div>
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center'
+                  }}>
+                    <div>
+                      <h3 style={{ fontFamily: "'Bebas Neue', sans-serif", color: 'var(--green)', fontSize: '1.5rem', margin: 0 }}>
+                        VIEWING {(sharedName || 'USER').toUpperCase()}'S STATS
+                      </h3>
+                      <p style={{ color: 'var(--muted)', fontSize: '0.7rem', fontFamily: "'Space Mono', monospace", marginTop: '0.2rem' }}>
+                        This is a shared snapshot. Upload your own data below to see your own analysis.
+                      </p>
+                    </div>
+                    <button 
+                      onClick={() => {
+                        const el = document.getElementById('upload-section');
+                        if (el) el.scrollIntoView({ behavior: 'smooth' });
+                      }}
+                      style={{
+                        background: 'var(--green)',
+                        color: 'black',
+                        border: 'none',
+                        padding: '0.6rem 1.2rem',
+                        borderRadius: 4,
+                        fontFamily: "'Bebas Neue', sans-serif",
+                        fontSize: '0.9rem',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      UPLOAD MY DATA
+                    </button>
+                  </div>
 
-              <div className="section-label">Overview</div>
-              <HeroStats stats={sharedStats} />
+                  <div className="section-label">Overview</div>
+                  <HeroStats stats={sharedStats} />
 
-              <div className="section-label">Fun Facts</div>
-              <FunFacts stats={sharedStats} />
+                  <div className="section-label">Fun Facts</div>
+                  <FunFacts stats={sharedStats} />
 
-              <div className="two-col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '2rem' }}>
-                <RankedList title="Top Tracks" items={sharedStats.topTracks} getName={d => d.name} getSub={d => `${d.artist} · ${d.plays.toLocaleString()} plays`} maxMs={sharedStats.topTracks[0]?.ms} />
-                <RankedList title="Top Artists" items={sharedStats.topArtists} getName={d => d.key} getSub={d => `${d.plays.toLocaleString()} plays`} maxMs={sharedStats.topArtists[0]?.ms} />
-              </div>
+                  <div className="two-col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '2rem' }}>
+                    <RankedList title="Top Tracks" items={sharedStats.topTracks} getName={d => d.name} getSub={d => `${d.artist} · ${d.plays.toLocaleString()} plays`} maxMs={sharedStats.topTracks[0]?.ms} />
+                    <RankedList title="Top Artists" items={sharedStats.topArtists} getName={d => d.key} getSub={d => `${d.plays.toLocaleString()} plays`} maxMs={sharedStats.topArtists[0]?.ms} />
+                  </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '4rem', alignItems: 'stretch' }}>
-                <RankedList title="Top Albums" items={sharedStats.topAlbums} getName={d => d.album} getSub={d => `${d.artist} · ${d.plays.toLocaleString()} plays`} maxMs={sharedStats.topAlbums[0]?.ms} />
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                  <Heatmap heatmap={sharedStats.heatmap} />
-                  <ListeningInsights stats={sharedStats} />
-                  <Platforms topPlatforms={sharedStats.topPlatforms} />
-                </div>
-              </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '4rem', alignItems: 'stretch' }}>
+                    <RankedList title="Top Albums" items={sharedStats.topAlbums} getName={d => d.album} getSub={d => `${d.artist} · ${d.plays.toLocaleString()} plays`} maxMs={sharedStats.topAlbums[0]?.ms} />
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                      <Heatmap heatmap={sharedStats.heatmap} />
+                      <ListeningInsights stats={sharedStats} />
+                      <Platforms topPlatforms={sharedStats.topPlatforms} />
+                    </div>
+                  </div>
+                </>
+              )}
 
               <div id="upload-section" style={{ borderTop: '1px solid var(--border)', paddingTop: '4rem', marginBottom: '2rem' }}>
-                <div className="section-label">Analyze Your Own History</div>
+                <div className="section-label">{isCompareLink ? 'Step 1: Upload Your Data' : 'Analyze Your Own History'}</div>
                 <DropZone onData={handleDataLoaded} />
               </div>
 
@@ -300,7 +333,7 @@ export default function App() {
                </div>
             )}
             
-            {sharedStats && (
+            {sharedStats && isCompareLink && (
                <div style={{ marginBottom: '2rem' }}>
                  <button 
                    onClick={() => setShowCompare(!showCompare)}
