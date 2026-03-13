@@ -38,6 +38,9 @@ export default function App() {
   const [isSharing, setIsSharing] = useState(null) // null, 'share', or 'compare'
   const [showCompare, setShowCompare] = useState(false)
   const [toast, setToast] = useState(null)
+  const [showNameModal, setShowNameModal] = useState(false)
+  const [nameInput, setNameInput] = useState('')
+  const [isCompareMode, setIsCompareMode] = useState(false)
 
   const showToast = (msg) => {
     setToast(msg)
@@ -70,8 +73,16 @@ export default function App() {
     }
   }, [])
 
-  const handleShare = async (isCompare = false) => {
-    setIsSharing(isCompare ? 'compare' : 'share')
+  const handleShare = (isCompare = false) => {
+    setIsCompareMode(isCompare)
+    setShowNameModal(true)
+  }
+
+  const executeShare = async () => {
+    const displayName = nameInput.trim() || 'User'
+    setShowNameModal(false)
+    setIsSharing(isCompareMode ? 'compare' : 'share')
+    
     const extendedStats = computeExtendedStats(allTracks)
     const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000'
     
@@ -79,11 +90,11 @@ export default function App() {
       const res = await fetch(`${API_URL}/share`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ display_name: 'User', stats: extendedStats })
+        body: JSON.stringify({ display_name: displayName, stats: extendedStats })
       })
       const data = await res.json()
       if (data.status === 'success') {
-        const link = `${window.location.origin}${window.location.pathname}?share=${data.share_id}${isCompare ? '&compare=true' : ''}`
+        const link = `${window.location.origin}${window.location.pathname}?share=${data.share_id}${isCompareMode ? '&compare=true' : ''}`
         setShareLink(link)
         navigator.clipboard.writeText(link)
         showToast("LINK COPIED TO CLIPBOARD")
@@ -413,6 +424,108 @@ export default function App() {
           gap: '0.5rem'
         }}>
           <span>✓</span> {toast}
+        </div>
+      )}
+
+      {showNameModal && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          background: 'rgba(0,0,0,0.85)',
+          backdropFilter: 'blur(4px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 100000,
+          padding: '2rem'
+        }}>
+          <div className="card fade-up" style={{ 
+            width: '100%', 
+            maxWidth: '400px', 
+            border: '1px solid var(--green)', 
+            padding: '2.5rem',
+            background: 'var(--surface)',
+            boxShadow: '0 20px 50px rgba(0,0,0,0.5)'
+          }}>
+            <h3 style={{ 
+              fontFamily: "'Bebas Neue', sans-serif", 
+              fontSize: '2rem', 
+              color: 'var(--green)', 
+              marginBottom: '0.5rem',
+              letterSpacing: '0.05em'
+            }}>
+              DISPLAY NAME
+            </h3>
+            <p style={{ 
+              fontFamily: "'Space Mono', monospace", 
+              fontSize: '0.7rem', 
+              color: 'var(--muted)', 
+              marginBottom: '1.5rem',
+              lineHeight: 1.4
+            }}>
+              Enter the name you want others to see when viewing your snapshot.
+            </p>
+            
+            <input 
+              autoFocus
+              value={nameInput}
+              onChange={e => setNameInput(e.target.value)}
+              placeholder="e.g. Alex"
+              onKeyDown={e => e.key === 'Enter' && executeShare()}
+              style={{
+                width: '100%',
+                background: 'var(--surface3)',
+                border: '1px solid var(--border)',
+                color: 'var(--text)',
+                padding: '1rem',
+                borderRadius: 4,
+                fontFamily: "'Space Mono', monospace",
+                fontSize: '0.9rem',
+                outline: 'none',
+                marginBottom: '2rem',
+                transition: 'border-color 0.2s'
+              }}
+              onFocus={e => e.target.style.borderColor = 'var(--green)'}
+              onBlur={e => e.target.style.borderColor = 'var(--border)'}
+            />
+
+            <div style={{ display: 'flex', gap: '1rem' }}>
+              <button 
+                onClick={() => setShowNameModal(false)}
+                style={{
+                  flex: 1,
+                  background: 'transparent',
+                  border: '1px solid var(--border)',
+                  color: 'var(--muted)',
+                  padding: '1rem',
+                  borderRadius: 4,
+                  fontFamily: "'Bebas Neue', sans-serif",
+                  fontSize: '1.1rem',
+                  cursor: 'pointer',
+                  letterSpacing: '0.1em'
+                }}
+              >
+                CANCEL
+              </button>
+              <button 
+                onClick={executeShare}
+                style={{
+                  flex: 2,
+                  background: 'var(--green)',
+                  border: 'none',
+                  color: 'black',
+                  padding: '1rem',
+                  borderRadius: 4,
+                  fontFamily: "'Bebas Neue', sans-serif",
+                  fontSize: '1.1rem',
+                  cursor: 'pointer',
+                  letterSpacing: '0.1em'
+                }}
+              >
+                CONTINUE
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
