@@ -3,10 +3,10 @@ import { msToHM } from '../utils/dataProcessing'
 
 export default function HeroStats({ stats }) {
   const items = [
-    { num: msToHM(stats.totalMs), label: 'Total Time Listened' },
-    { num: stats.totalPlays.toLocaleString(), label: 'Total Plays' },
-    { num: stats.uniqueTracks.toLocaleString(), label: 'Unique Tracks' },
-    { num: stats.uniqueArtists.toLocaleString(), label: 'Unique Artists' },
+    { num: msToHM(stats?.totalMs || 0), label: 'Total Time Listened' },
+    { num: (stats?.totalPlays || 0).toLocaleString(), label: 'Total Plays' },
+    { num: (stats?.uniqueTracks || 0).toLocaleString(), label: 'Unique Tracks' },
+    { num: (stats?.uniqueArtists || 0).toLocaleString(), label: 'Unique Artists' },
   ]
 
   return (

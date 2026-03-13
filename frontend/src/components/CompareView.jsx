@@ -2,18 +2,24 @@ import React from 'react'
 import HeroStats from './HeroStats'
 
 export default function CompareView({ userStats, sharedStats, sharedName }) {
+  // Defensive checks for stats arrays
+  const userArtists = userStats?.topArtists || []
+  const sharedArtists = sharedStats?.topArtists || []
+  const userTracks = userStats?.topTracks || []
+  const sharedTracks = sharedStats?.topTracks || []
+
   // Intersection logic - comparing keys (artist names / track keys)
-  const commonArtists = userStats.topArtists.filter(ua => 
-    sharedStats.topArtists.some(sa => sa.key === ua.key)
+  const commonArtists = userArtists.filter(ua => 
+    sharedArtists.some(sa => sa.key === ua.key)
   ).map(a => a.key)
 
-  const commonTracks = userStats.topTracks.filter(ut => 
-    sharedStats.topTracks.some(st => st.key === ut.key)
+  const commonTracks = userTracks.filter(ut => 
+    sharedTracks.some(st => st.key === ut.key)
   ).map(t => t.name)
 
   // Match score calculation (rough heuristic based on top 100 overlap)
-  const artistScore = (commonArtists.length / 25) * 50 // 25 common artists is a lot
-  const trackScore = (commonTracks.length / 15) * 50 // 15 common tracks is a lot
+  const artistScore = (commonArtists.length / 25) * 50 
+  const trackScore = (commonTracks.length / 15) * 50 
   const matchScore = Math.min(100, Math.round(artistScore + trackScore))
 
   return (
@@ -34,7 +40,7 @@ export default function CompareView({ userStats, sharedStats, sharedName }) {
         }}>
           <span style={{ color: 'var(--text)' }}>YOU</span>
           <span style={{ color: 'var(--muted)' }}>VS</span>
-          <span style={{ color: 'var(--green)' }}>{sharedName.toUpperCase()}</span>
+          <span style={{ color: 'var(--green)' }}>{(sharedName || 'FRIEND').toUpperCase()}</span>
         </div>
       </div>
 
@@ -61,8 +67,8 @@ export default function CompareView({ userStats, sharedStats, sharedName }) {
             color: 'var(--muted)', 
             fontFamily: "'Space Mono', monospace",
             letterSpacing: '0.15em'
-          }}>{sharedName.toUpperCase()}'S STATS</h3>
-          <HeroStats stats={sharedStats} />
+          }}>{(sharedName || 'FRIEND').toUpperCase()}'S STATS</h3>
+          <HeroStats stats={sharedStats || {}} />
         </div>
       </div>
 

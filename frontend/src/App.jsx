@@ -197,7 +197,7 @@ export default function App() {
                 YOU'VE BEEN INVITED TO COMPARE STATS!
               </h3>
               <p style={{ color: 'var(--text)', fontSize: '0.9rem', maxWidth: '600px', margin: '0 auto', fontFamily: "'Space Mono', monospace" }}>
-                {sharedName.toUpperCase()} shared their listening habits with you. <br/>
+                {(sharedName || 'Someone').toUpperCase()} shared their listening habits with you. <br/>
                 Upload your Spotify extended history below to see how you match up.
               </p>
             </div>
@@ -235,7 +235,7 @@ export default function App() {
                      gap: '1rem'
                    }}
                  >
-                   {showCompare ? '↑ BACK TO MY PERSONAL STATS' : `↓ COMPARE WITH ${sharedName.toUpperCase()}'S TASTE`}
+                   {showCompare ? '↑ BACK TO MY PERSONAL STATS' : `↓ COMPARE WITH ${(sharedName || 'FRIEND').toUpperCase()}'S TASTE`}
                  </button>
                </div>
             )}
