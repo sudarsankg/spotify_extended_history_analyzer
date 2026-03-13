@@ -470,7 +470,7 @@ export default function App() {
               autoFocus
               value={nameInput}
               onChange={e => setNameInput(e.target.value)}
-              placeholder="e.g. Alex"
+              placeholder="e.g. John"
               onKeyDown={e => e.key === 'Enter' && executeShare()}
               style={{
                 width: '100%',
