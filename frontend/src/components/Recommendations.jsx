@@ -52,7 +52,7 @@ export default function Recommendations({
   }, [similarTarget])
 
   const findSimilar = async (trackId, trackName, mode = 'diverse') => {
-    const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000'
+    const API_URL = import.meta.env.VITE_API_URL || ''
     setSimilarTarget({ id: trackId, name: trackName || "Your Song" })
     setSimilarMode(mode)
     setIsSimilarLoading(true)
@@ -103,7 +103,7 @@ export default function Recommendations({
       return;
     }
 
-    const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000'
+    const API_URL = import.meta.env.VITE_API_URL || ''
     try {
       const res = await fetch(`${API_URL}/check_taste`, {
         method: 'POST',

@@ -6,8 +6,10 @@ os.environ["VECLIB_MAXIMUM_THREADS"] = "1"
 os.environ["NUMEXPR_NUM_THREADS"] = "1"
 
 import random
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from typing import Optional, List
 import pandas as pd
@@ -462,6 +464,23 @@ async def get_shared_stats(share_id: str):
     if not data:
         return {"status": "error", "message": "Share not found or expired."}
     return {"status": "success", "data": json.loads(data)}
+
+# --- FRONTEND SERVING ---
+# In production (Hugging Face), the root Dockerfile builds the frontend into 'frontend/dist'
+if os.path.exists("frontend/dist"):
+    app.mount("/assets", StaticFiles(directory="frontend/dist/assets"), name="assets")
+
+    @app.get("/{full_path:path}")
+    async def serve_frontend(full_path: str):
+        # Prevent intercepting API calls
+        if full_path.startswith("analyze") or \
+           full_path.startswith("deep_analyze") or \
+           full_path.startswith("similar") or \
+           full_path.startswith("check_taste") or \
+           full_path.startswith("share"):
+            raise HTTPException(status_code=404)
+            
+        return FileResponse("frontend/dist/index.html")
 
 if __name__ == "__main__":
     import uvicorn

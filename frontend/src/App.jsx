@@ -68,7 +68,7 @@ export default function App() {
     const shouldCompare = params.get('compare') === 'true'
     if (shareId) {
       setIsCompareLink(shouldCompare)
-      const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000'
+      const API_URL = import.meta.env.VITE_API_URL || ''
       fetch(`${API_URL}/share/${shareId}`)
         .then(res => res.json())
         .then(json => {
@@ -96,7 +96,7 @@ export default function App() {
     if (tasteDna) extendedStats.taste_dna = tasteDna
     extendedStats.yearly_timeline = computeTimeline(allTracks, 'all', 'all')
     
-    const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000'
+    const API_URL = import.meta.env.VITE_API_URL || ''
     
     try {
       const res = await fetch(`${API_URL}/share`, {
@@ -150,7 +150,7 @@ export default function App() {
     setDeepRecs([])
     setClusterViz(null)
     
-    const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000'
+    const API_URL = import.meta.env.VITE_API_URL || ''
     
     try {
       const resHits = await fetch(`${API_URL}/analyze`, {
