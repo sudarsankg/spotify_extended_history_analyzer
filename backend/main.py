@@ -425,7 +425,12 @@ import json
 REDIS_URL = os.environ.get("REDIS_URL")
 if REDIS_URL:
     try:
-        r = redis.from_url(REDIS_URL)
+        # For Upstash/Redis with SSL and specific username/password handling
+        r = redis.from_url(
+            REDIS_URL, 
+            decode_responses=True, 
+            ssl_cert_reqs=None # Common for managed Redis with SSL
+        )
         r.ping()
         print("✅ Connected to Redis")
     except Exception as e:
